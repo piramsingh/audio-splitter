@@ -61,3 +61,5 @@ SC_REDIRECT_URI=http://localhost:5001/soundcloud/callback
 ```
 
 These are optional — the app works fully without them.
+
+> If you want access to the SoundCloud & Drive plugins, please contact me for the personal access tokens.
