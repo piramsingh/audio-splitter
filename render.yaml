@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: ssa-sounds-splitter
+    runtime: python
+    buildCommand: "apt-get install -y ffmpeg && pip install -r requirements.txt"
+    startCommand: "gunicorn app:app --timeout 300 --workers 2"
+    envVars:
+      - key: SC_CLIENT_ID
+        sync: false
+      - key: SC_CLIENT_SECRET
+        sync: false
+      - key: SC_REDIRECT_URI
+        sync: false
+      - key: GD_CLIENT_ID
+        sync: false
+      - key: GD_CLIENT_SECRET
+        sync: false
+      - key: GD_REDIRECT_URI
+        sync: false
+      - key: UPLOAD_BASE
+        value: /tmp
+      - key: YOUTUBE_COOKIES
+        sync: false

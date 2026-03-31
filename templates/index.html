@@ -1,0 +1,2913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Splitter</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+            background: #fafafa;
+            color: #1a1a2a;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* ── Header ──────────────────────────────────── */
+        .header {
+            width: 100%;
+            padding: 1.25rem 0 0.75rem;
+            text-align: center;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #1a1a2a;
+            letter-spacing: 0.5px;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            right: 1.25rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 0.4rem;
+            cursor: pointer;
+            color: #6b7280;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .theme-toggle:hover {
+            background: #f3f4f6;
+            color: #1a1a2a;
+        }
+
+        /* ── Progress indicator ──────────────────────── */
+        .progress-bar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1.25rem 0 0.5rem;
+        }
+
+        .progress-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #e5e7eb;
+            transition: all 0.3s;
+        }
+
+        .progress-dot.active {
+            background: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+        }
+
+        .progress-dot.done {
+            background: #4f46e5;
+        }
+
+        .progress-line {
+            width: 40px;
+            height: 2px;
+            background: #e5e7eb;
+            transition: background 0.3s;
+        }
+
+        .progress-line.done {
+            background: #4f46e5;
+        }
+
+        .step-label {
+            text-align: center;
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-bottom: 0.75rem;
+        }
+
+        /* ── Container ───────────────────────────────── */
+        .container {
+            width: 100%;
+            max-width: 640px;
+            padding: 0 1.5rem 3rem;
+        }
+
+        /* ── Typeform-style step transitions ─────────── */
+        .step {
+            display: none;
+            opacity: 0;
+            transform: translateY(40px);
+            will-change: opacity, transform;
+        }
+
+        .step.step-enter {
+            display: block;
+            animation: stepSlideIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        .step.visible {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .step.step-exit {
+            display: block;
+            animation: stepSlideOut 0.4s cubic-bezier(0.55, 0, 1, 0.45) forwards;
+        }
+
+        .step.step-exit-reverse {
+            display: block;
+            animation: stepSlideOutReverse 0.4s cubic-bezier(0.55, 0, 1, 0.45) forwards;
+        }
+
+        .step.step-enter-reverse {
+            display: block;
+            animation: stepSlideInReverse 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        @keyframes stepSlideIn {
+            0%   { opacity: 0; transform: translateY(40px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes stepSlideOut {
+            0%   { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-30px); }
+        }
+
+        @keyframes stepSlideInReverse {
+            0%   { opacity: 0; transform: translateY(-40px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes stepSlideOutReverse {
+            0%   { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(30px); }
+        }
+
+        /* Staggered child animations */
+        .step.step-enter .step-anim-heading,
+        .step.step-enter-reverse .step-anim-heading {
+            opacity: 0;
+            animation: elementFadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+            animation-delay: 0.15s;
+        }
+
+        .step.step-enter .step-anim-content,
+        .step.step-enter-reverse .step-anim-content {
+            opacity: 0;
+            animation: elementFadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+            animation-delay: 0.3s;
+        }
+
+        .step.step-enter .step-anim-content ~ .step-anim-content,
+        .step.step-enter-reverse .step-anim-content ~ .step-anim-content {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes elementFadeUp {
+            0%   { opacity: 0; transform: translateY(15px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        .step.visible .step-anim-heading,
+        .step.visible .step-anim-content {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .step, .step.step-enter, .step.step-exit,
+            .step.step-enter-reverse, .step.step-exit-reverse {
+                animation-duration: 0.01ms !important;
+            }
+            .step.step-enter .step-anim-heading,
+            .step.step-enter .step-anim-content,
+            .step.step-enter-reverse .step-anim-heading,
+            .step.step-enter-reverse .step-anim-content {
+                animation-duration: 0.01ms !important;
+                animation-delay: 0ms !important;
+            }
+        }
+
+        /* ── Step headings ──────────────────────────────── */
+        .step-heading {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1a1a2a;
+            margin-bottom: 0.4rem;
+            text-align: center;
+        }
+
+        .step-subheading {
+            font-size: 0.9rem;
+            color: #6b7280;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        /* ── Unified input zone ──────────────────────── */
+        .unified-input {
+            background: #fff;
+            border: 2px solid #e5e7eb;
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1.25rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .unified-input:focus-within {
+            border-color: #1a1a2a;
+            box-shadow: 0 2px 16px rgba(0, 0, 0, 0.06);
+        }
+
+        .unified-url-area {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .unified-url-icon {
+            color: #6b7280;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+        }
+
+        .unified-url-field {
+            flex: 1;
+            border: none !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            padding: 0.5rem 0 !important;
+            font-size: 0.95rem;
+            color: #1a1a2a;
+        }
+
+        .unified-url-field:focus {
+            outline: none;
+            border: none !important;
+            box-shadow: none !important;
+        }
+
+        .unified-divider {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin: 1rem 0;
+        }
+
+        .unified-divider-line {
+            flex: 1;
+            height: 1px;
+            background: #e5e7eb;
+        }
+
+        .unified-divider-text {
+            font-size: 0.8rem;
+            color: #9ca3af;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .unified-drop-zone {
+            display: block;
+            cursor: pointer;
+            border: 2px dashed #e5e7eb;
+            border-radius: 12px;
+            padding: 2rem 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+
+        .unified-drop-zone:hover {
+            border-color: #1a1a2a;
+            background: #fafafa;
+        }
+
+        .unified-drop-zone.drag-over {
+            border-color: #1a1a2a;
+            background: #f0f0ff;
+            transform: scale(1.01);
+        }
+
+        .drop-zone-icon {
+            color: #9ca3af;
+            margin-bottom: 0.5rem;
+            transition: color 0.2s;
+        }
+
+        .unified-drop-zone:hover .drop-zone-icon,
+        .unified-drop-zone.drag-over .drop-zone-icon {
+            color: #1a1a2a;
+        }
+
+        .drop-zone-text {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #1a1a2a;
+            margin-bottom: 0.25rem;
+        }
+
+        .drop-zone-subtext {
+            font-size: 0.8rem;
+            color: #6b7280;
+        }
+
+        .drop-zone-browse {
+            background: none;
+            border: none;
+            color: #1a1a2a;
+            font-weight: 600;
+            font-size: 0.8rem;
+            cursor: pointer;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+            font-family: inherit;
+            padding: 0;
+        }
+
+        .drop-zone-browse:hover { color: #000; }
+
+        .drop-zone-formats {
+            font-size: 0.7rem;
+            color: #9ca3af;
+            margin-top: 0.5rem;
+        }
+
+        .yt-progress-area {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        /* ── Inputs ─────────────────────────────────────── */
+        input[type="text"], input[type="url"], select {
+            width: 100%;
+            padding: 0.65rem 0.9rem;
+            background: #fafafa;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            color: #1a1a2a;
+            font-size: 0.9rem;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus, input[type="url"]:focus, select:focus {
+            outline: none;
+            border-color: #1a1a2a;
+            box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08);
+        }
+
+        /* ── Buttons ─────────────────────────────────── */
+        .btn-primary {
+            padding: 0.7rem 1.5rem;
+            background: #4f46e5;
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 0.9rem;
+            font-weight: 600;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .btn-primary:hover { background: #4338ca; }
+        .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .btn-secondary {
+            padding: 0.6rem 1.2rem;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            color: #6b7280;
+            font-size: 0.85rem;
+            font-weight: 500;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .btn-secondary:hover { border-color: #1a1a2a; color: #1a1a2a; }
+
+        /* ── Navigation row ──────────────────────────── */
+        .nav-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .nav-row .spacer { flex: 1; }
+
+        /* ── Audio info banner ────────────────────────── */
+        .audio-info {
+            display: none;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 10px;
+            padding: 0.9rem 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .audio-info .info-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .audio-info .info-header i { color: #10b981; }
+
+        .audio-info .info-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #1a1a2a;
+        }
+
+        .audio-info .info-meta {
+            font-size: 0.8rem;
+            color: #6b7280;
+        }
+
+        .audio-info .info-actions {
+            margin-top: 0.5rem;
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .audio-info .info-actions a {
+            font-size: 0.8rem;
+            color: #1a1a2a;
+            text-decoration: none;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .audio-info .info-actions a:hover { text-decoration: underline; }
+
+        /* ── Download MP3 button ────────────────────── */
+        .btn-download-mp3 {
+            width: 100%;
+            padding: 0.9rem;
+            background: #10b981;
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .btn-download-mp3:hover { background: #059669; }
+        .btn-download-mp3:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .convert-progress-wrap {
+            margin-bottom: 0.75rem;
+        }
+
+        .convert-progress-text {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #10b981;
+            text-align: center;
+            margin-bottom: 0.4rem;
+        }
+
+        .convert-progress-track {
+            width: 100%;
+            height: 10px;
+            background: #e5e7eb;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .convert-progress-fill {
+            height: 100%;
+            background: #10b981;
+            border-radius: 5px;
+            transition: width 0.5s ease;
+            width: 0%;
+        }
+
+        body.dark .convert-progress-track { background: #2a2a35; }
+        body.dark .convert-progress-text { color: #34d399; }
+
+        /* ── Format selector ─────────────────────────── */
+        .format-row {
+            margin: 0 auto 1rem;
+            max-width: 180px;
+        }
+
+        .format-row label {
+            font-size: 0.8rem;
+            color: #6b7280;
+            margin-bottom: 0.3rem;
+            display: block;
+            font-weight: 500;
+            text-align: center;
+        }
+
+        /* ── YouTube progress ────────────────────────── */
+        .yt-status {
+            text-align: center;
+            margin-top: 0.6rem;
+            font-size: 0.8rem;
+            min-height: 1.2rem;
+            color: #6b7280;
+        }
+
+        .yt-status.error { color: #ef4444; }
+        .yt-status.success { color: #10b981; }
+
+        .yt-progress-wrap {
+            display: none;
+            margin-top: 0.75rem;
+        }
+
+        .yt-progress-text {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #6b7280;
+            text-align: center;
+            margin-bottom: 0.35rem;
+        }
+
+        .yt-progress-track {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .yt-progress-fill {
+            height: 100%;
+            background: #4f46e5;
+            border-radius: 4px;
+            transition: width 0.4s ease;
+            width: 0%;
+        }
+
+        /* ── Kirtani rows (Step 3) ───────────────────── */
+        .performer-row {
+            display: grid;
+            grid-template-columns: 1fr 160px 160px 36px;
+            gap: 0.5rem;
+            align-items: end;
+            margin-bottom: 0.6rem;
+        }
+
+        .performer-row input[type="text"] { width: 100%; }
+
+        .time-group {
+            display: flex;
+            gap: 3px;
+            align-items: center;
+        }
+
+        .time-group input { flex: 1; min-width: 0; }
+
+        .name-group {
+            display: flex;
+            gap: 3px;
+            align-items: center;
+        }
+
+        .name-group input { flex: 1; min-width: 0; }
+
+        .btn-name-template {
+            padding: 0.4rem 0.4rem;
+            background: #ede9fe;
+            border: 1px solid #c4b5fd;
+            border-radius: 6px;
+            color: #5b21b6;
+            font-size: 0.6rem;
+            font-weight: 700;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .btn-name-template:hover { background: #5b21b6; color: #fff; border-color: #5b21b6; }
+
+        body.dark .btn-name-template { background: #2e1065; border-color: #4c1d95; color: #c4b5fd; }
+        body.dark .btn-name-template:hover { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+
+        .btn-shortcut {
+            padding: 0.4rem 0.35rem;
+            background: #f3f4f6;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            color: #1a1a2a;
+            font-size: 0.6rem;
+            font-weight: 600;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .btn-shortcut:hover { background: #1a1a2a; color: #fff; }
+
+        .btn-remove {
+            width: 36px;
+            height: 36px;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            color: #ef4444;
+            font-size: 1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .btn-remove:hover { background: #ef4444; color: #fff; }
+
+        .btn-add {
+            background: #fff;
+            border: 2px dashed #e5e7eb;
+            border-radius: 8px;
+            color: #6b7280;
+            padding: 0.6rem;
+            width: 100%;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3rem;
+        }
+
+        .btn-add:hover { border-color: #1a1a2a; color: #1a1a2a; }
+
+        /* ── Split button ────────────────────────────── */
+        .btn-split {
+            width: 100%;
+            padding: 0.9rem;
+            background: #4f46e5;
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .btn-split:hover { background: #4338ca; }
+        .btn-split:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .btn-new-project {
+            background: #10b981;
+        }
+        .btn-new-project:hover { background: #059669; }
+
+        .btn-cancel-split {
+            width: 100%;
+            padding: 0.75rem 1.5rem;
+            background: none;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 12px;
+            color: #6b7280;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+            margin-top: 0.5rem;
+        }
+        .btn-cancel-split:hover { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,0.04); }
+        body.dark .btn-cancel-split { border-color: #3a3a4a; color: #6b7280; }
+        body.dark .btn-cancel-split:hover { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,0.06); }
+
+        /* ── Status ──────────────────────────────────── */
+        .status {
+            text-align: center;
+            margin-top: 0.75rem;
+            font-size: 0.85rem;
+            min-height: 1.4rem;
+        }
+
+        .status.error { color: #ef4444; }
+        .status.success { color: #10b981; }
+        .status.processing { color: #1a1a2a; }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #1a1a2a;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            vertical-align: middle;
+            margin-right: 0.4rem;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Column headers ──────────────────────────── */
+        .col-headers {
+            display: grid;
+            grid-template-columns: 1fr 160px 160px 36px;
+            gap: 0.5rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .col-headers span {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+
+        /* ── Upload toast ───────────────────────────── */
+        #uploadToast {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #4f46e5;
+            color: #fff;
+            border-radius: 14px;
+            padding: 0.85rem 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.28);
+            z-index: 900;
+            min-width: 300px;
+            max-width: min(480px, calc(100vw - 2rem));
+            animation: toastSlideUp 0.3s cubic-bezier(0.22,1,0.36,1);
+        }
+
+        @keyframes toastSlideUp {
+            from { opacity: 0; transform: translateX(-50%) translateY(16px); }
+            to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+
+        .upload-toast-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .upload-toast-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .upload-toast-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #e5e7eb;
+            margin-bottom: 0.35rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .upload-toast-track {
+            width: 100%;
+            height: 4px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .upload-toast-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.4s ease;
+            width: 0%;
+        }
+
+        .upload-toast-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #fff;
+            background: rgba(255,255,255,0.15);
+            border-radius: 6px;
+            padding: 0.3rem 0.6rem;
+            text-decoration: none;
+            white-space: nowrap;
+            transition: background 0.15s;
+            flex-shrink: 0;
+        }
+        .upload-toast-link:hover { background: rgba(255,255,255,0.25); }
+
+        .upload-toast-close {
+            background: none;
+            border: none;
+            color: #9ca3af;
+            cursor: pointer;
+            padding: 0.2rem;
+            display: flex;
+            align-items: center;
+            border-radius: 4px;
+            flex-shrink: 0;
+            transition: color 0.15s;
+        }
+        .upload-toast-close:hover { color: #fff; }
+
+        /* ── Paste timestamps ───────────────────────── */
+        .add-row-group {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .btn-paste-timestamps {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            background: none;
+            border: 1.5px dashed #d1d5db;
+            border-radius: 8px;
+            padding: 0.55rem 0.9rem;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+        .btn-paste-timestamps:hover {
+            border-color: #4f46e5;
+            color: #4f46e5;
+            background: rgba(79,70,229,0.04);
+        }
+
+        #pasteModal {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .paste-modal-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+        }
+
+        .paste-modal-box {
+            position: relative;
+            background: #fff;
+            border-radius: 14px;
+            padding: 1.5rem;
+            width: min(480px, calc(100vw - 2rem));
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .paste-modal-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #1a1a2a;
+        }
+
+        .paste-modal-hint {
+            font-size: 0.8rem;
+            color: #6b7280;
+        }
+
+        .paste-modal-hint code {
+            background: #f3f4f6;
+            border-radius: 4px;
+            padding: 0.1rem 0.35rem;
+            font-size: 0.78rem;
+            color: #374151;
+        }
+
+        .paste-modal-textarea {
+            width: 100%;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 0.75rem;
+            font-size: 0.82rem;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            resize: vertical;
+            color: #1a1a2a;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .paste-modal-textarea:focus { border-color: #4f46e5; }
+
+        .paste-modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+        }
+
+        body.dark .paste-modal-box {
+            background: #1e1e2e;
+            border: 1px solid #2d2d3d;
+        }
+        body.dark .paste-modal-title { color: #e5e7eb; }
+        body.dark .paste-modal-hint { color: #9ca3af; }
+        body.dark .paste-modal-hint code { background: #2d2d3d; color: #d1d5db; }
+        body.dark .paste-modal-textarea {
+            background: #13131f;
+            border-color: #2d2d3d;
+            color: #e5e7eb;
+        }
+        body.dark .btn-paste-timestamps { border-color: #3d3d4d; color: #6b7280; }
+        body.dark .btn-paste-timestamps:hover { border-color: #818cf8; color: #818cf8; background: rgba(129,140,248,0.06); }
+
+        /* ── Dark mode ───────────────────────────────── */
+        body.dark {
+            background: #0f0f14;
+            color: #e5e7eb;
+        }
+
+        body.dark .header {
+            background: #18181f;
+            border-bottom-color: #2a2a35;
+        }
+
+        body.dark .header h1 { color: #f3f4f6; }
+
+        body.dark .theme-toggle {
+            border-color: #2a2a35;
+            color: #9ca3af;
+        }
+
+        body.dark .theme-toggle:hover {
+            background: #2a2a35;
+            color: #f3f4f6;
+        }
+
+        body.dark .progress-dot { background: #2a2a35; }
+        body.dark .progress-line { background: #2a2a35; }
+        body.dark .step-label { color: #9ca3af; }
+
+        body.dark .step-heading { color: #f3f4f6; }
+        body.dark .step-subheading { color: #9ca3af; }
+
+        body.dark .unified-input {
+            background: #18181f;
+            border-color: #2a2a35;
+        }
+
+        body.dark .unified-input:focus-within {
+            border-color: #4f46e5;
+            box-shadow: 0 2px 16px rgba(79, 70, 229, 0.15);
+        }
+
+        body.dark .unified-url-icon { color: #9ca3af; }
+        body.dark .unified-url-field { color: #e5e7eb; }
+        body.dark .unified-divider-line { background: #2a2a35; }
+        body.dark .unified-divider-text { color: #6b7280; }
+
+        body.dark .unified-drop-zone {
+            border-color: #2a2a35;
+        }
+
+        body.dark .unified-drop-zone:hover {
+            border-color: #4f46e5;
+            background: #1a1a25;
+        }
+
+        body.dark .unified-drop-zone.drag-over {
+            border-color: #4f46e5;
+            background: #1e1e2e;
+        }
+
+        body.dark .drop-zone-icon { color: #6b7280; }
+        body.dark .unified-drop-zone:hover .drop-zone-icon,
+        body.dark .unified-drop-zone.drag-over .drop-zone-icon { color: #818cf8; }
+        body.dark .drop-zone-text { color: #e5e7eb; }
+        body.dark .drop-zone-subtext { color: #9ca3af; }
+        body.dark .drop-zone-browse { color: #818cf8; }
+        body.dark .drop-zone-browse:hover { color: #a5b4fc; }
+        body.dark .drop-zone-formats { color: #6b7280; }
+
+        body.dark .yt-progress-area { border-top-color: #2a2a35; }
+        body.dark .yt-progress-track { background: #2a2a35; }
+        body.dark .yt-status { color: #9ca3af; }
+
+        body.dark input[type="text"],
+        body.dark input[type="url"],
+        body.dark select {
+            background: #18181f;
+            border-color: #2a2a35;
+            color: #e5e7eb;
+        }
+
+        body.dark input[type="text"]:focus,
+        body.dark input[type="url"]:focus,
+        body.dark select:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+        }
+
+        body.dark .btn-secondary {
+            background: #18181f;
+            border-color: #2a2a35;
+            color: #9ca3af;
+        }
+
+        body.dark .btn-secondary:hover {
+            border-color: #4f46e5;
+            color: #e5e7eb;
+        }
+
+        body.dark .audio-info {
+            background: #0d2818;
+            border-color: #1a4d2e;
+        }
+
+        body.dark .audio-info .info-title { color: #e5e7eb; }
+        body.dark .audio-info .info-meta { color: #9ca3af; }
+        body.dark .audio-info .info-actions a { color: #818cf8; }
+
+        body.dark .col-headers span { color: #9ca3af; }
+        body.dark .format-row label { color: #9ca3af; }
+
+        body.dark .btn-shortcut {
+            background: #2a2a35;
+            border-color: #3a3a45;
+            color: #e5e7eb;
+        }
+
+        body.dark .btn-shortcut:hover {
+            background: #4f46e5;
+            color: #fff;
+        }
+
+        body.dark .btn-remove {
+            background: #2a1515;
+            border-color: #4a2020;
+        }
+
+        body.dark .btn-remove:hover {
+            background: #ef4444;
+            color: #fff;
+        }
+
+        body.dark .btn-add {
+            background: #18181f;
+            border-color: #2a2a35;
+            color: #9ca3af;
+        }
+
+        body.dark .btn-add:hover {
+            border-color: #4f46e5;
+            color: #e5e7eb;
+        }
+
+        body.dark .status.processing { color: #818cf8; }
+        body.dark .spinner {
+            border-color: #818cf8;
+            border-top-color: transparent;
+        }
+
+.col-headers-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.3rem;
+        }
+
+        .col-headers-row .col-headers {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        .kirtani-counter {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #9ca3af;
+            white-space: nowrap;
+            padding-left: 0.5rem;
+        }
+
+        body.dark .kirtani-counter { color: #6b7280; }
+
+        /* ── Per-row split states ────────────────────── */
+        .performer-row {
+            transition: background 0.3s ease;
+        }
+
+        .performer-row.row-pending {
+            opacity: 0.55;
+        }
+
+        .performer-row.row-processing {
+            opacity: 1;
+            background: #f5f3ff;
+            border-radius: 8px;
+            padding: 2px 4px;
+        }
+
+        .performer-row.row-done {
+            opacity: 1;
+            background: #f0fdf4;
+            border-radius: 8px;
+            padding: 2px 4px;
+        }
+
+        .performer-row.row-done .btn-remove {
+            background: #dcfce7;
+            border-color: #86efac;
+            color: #16a34a;
+            pointer-events: none;
+            cursor: default;
+        }
+
+        .performer-row.row-processing .btn-remove {
+            background: #ede9fe;
+            border-color: #c4b5fd;
+            color: #7c3aed;
+            pointer-events: none;
+            cursor: default;
+        }
+
+        body.dark .performer-row.row-processing { background: #1e1829; }
+        body.dark .performer-row.row-done { background: #0d2818; }
+        body.dark .performer-row.row-done .btn-remove { background: #14532d; border-color: #166534; color: #4ade80; }
+        body.dark .performer-row.row-processing .btn-remove { background: #2e1065; border-color: #4c1d95; color: #a78bfa; }
+
+        /* ── SoundCloud section ──────────────────────── */
+        .sc-section {
+            margin-top: 1.25rem;
+            padding-top: 1.25rem;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        /* Cover art upload area */
+        .sc-cover-row {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            margin-bottom: 0.85rem;
+        }
+
+        .sc-cover-thumb {
+            width: 60px;
+            height: 60px;
+            border: 2px dashed #e5e7eb;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            overflow: hidden;
+            position: relative;
+            transition: border-color 0.2s, background 0.2s;
+        }
+
+        .sc-cover-thumb:hover {
+            border-color: #ff5500;
+            background: #fff5f0;
+        }
+
+        .sc-cover-thumb.has-image {
+            border-style: solid;
+            border-color: #ff5500;
+        }
+
+        .sc-cover-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            position: absolute;
+            inset: 0;
+            border-radius: 8px;
+        }
+
+        .sc-cover-info p {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #1a1a2a;
+            margin-bottom: 0.15rem;
+        }
+
+        .sc-cover-info span {
+            font-size: 0.75rem;
+            color: #9ca3af;
+        }
+
+        body.dark .sc-cover-thumb {
+            border-color: #3a3a45;
+            background: #18181f;
+        }
+
+        body.dark .sc-cover-thumb:hover {
+            border-color: #ff5500;
+            background: #2a1a12;
+        }
+
+        body.dark .sc-cover-info p { color: #e5e7eb; }
+
+        .sc-card-label {
+            font-size: 0.75rem;
+            color: #9ca3af;
+            font-weight: 500;
+            margin-bottom: 0.4rem;
+        }
+
+        .btn-sc-card {
+            width: 100%;
+            padding: 0.9rem 1.1rem;
+            background: #fff;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: all 0.2s;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+            text-align: left;
+        }
+
+        .btn-sc-card:hover { border-color: #1a1a2a; background: #fafafa; }
+        .btn-sc-card:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .sc-icon-badge {
+            width: 52px;
+            height: 52px;
+            background: #ff5500;
+            border-radius: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(255, 85, 0, 0.25);
+        }
+
+        .gd-icon-badge {
+            width: 52px;
+            height: 52px;
+            background: #1a73e8;
+            border-radius: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(26, 115, 232, 0.25);
+        }
+
+        .share-cards-row {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .share-card-col {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .sc-card-text {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1a1a2a;
+        }
+
+        body.dark .sc-card-label { color: #6b7280; }
+        body.dark .btn-sc-card { background: #18181f; border-color: #2a2a35; }
+        body.dark .btn-sc-card:hover { border-color: #9ca3af; background: #1e1e2a; }
+        body.dark .sc-card-text { color: #e5e7eb; }
+
+        .sc-auth-msg {
+            text-align: center;
+            font-size: 0.85rem;
+            color: #6b7280;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+        }
+
+        .sc-auth-msg .spinner {
+            border-color: #ff5500;
+            border-top-color: transparent;
+            width: 14px;
+            height: 14px;
+            border-width: 2px;
+            margin: 0;
+        }
+
+        .sc-progress-status {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #ff5500;
+            text-align: center;
+            margin-bottom: 0.4rem;
+        }
+
+        .sc-progress-track {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .sc-progress-fill {
+            height: 100%;
+            background: #ff5500;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+            width: 0%;
+        }
+
+        .sc-done-msg {
+            text-align: center;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #ff5500;
+            margin-bottom: 0.75rem;
+        }
+
+        .btn-sc-playlist {
+            width: 100%;
+            padding: 0.7rem 1.2rem;
+            background: #fff;
+            border: 2px solid #ff5500;
+            border-radius: 8px;
+            color: #ff5500;
+            font-size: 0.9rem;
+            font-weight: 600;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .btn-sc-playlist:hover { background: #ff5500; color: #fff; }
+
+        .sc-error {
+            text-align: center;
+            font-size: 0.8rem;
+            color: #ef4444;
+            margin-top: 0.5rem;
+        }
+
+        body.dark .sc-section { border-top-color: #2a2a35; }
+        body.dark .sc-progress-track { background: #2a2a35; }
+        body.dark .sc-auth-msg { color: #9ca3af; }
+        body.dark .btn-sc-playlist { background: #18181f; }
+        body.dark .btn-sc-playlist:hover { background: #ff5500; border-color: #ff5500; color: #fff; }
+
+        /* ── Responsive ──────────────────────────────── */
+        @media (max-width: 600px) {
+            .unified-input { padding: 1rem; }
+            .unified-drop-zone { padding: 1.5rem 0.75rem; }
+            .performer-row { grid-template-columns: 1fr 1fr; }
+            .col-headers { grid-template-columns: 1fr 1fr; }
+            .col-headers span:nth-child(4) { display: none; }
+            .step-heading { font-size: 1.25rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>Audio Splitter</h1>
+    <button class="theme-toggle" id="themeToggle" onclick="toggleDarkMode()" title="Toggle dark mode">
+        <i data-lucide="moon" style="width:16px;height:16px" id="themeIconMoon"></i>
+        <i data-lucide="sun" style="width:16px;height:16px;display:none" id="themeIconSun"></i>
+    </button>
+</div>
+
+<div class="container">
+
+    <!-- Progress indicator -->
+    <div class="progress-bar">
+        <div class="progress-dot active" id="dot1"></div>
+        <div class="progress-line" id="line1"></div>
+        <div class="progress-dot" id="dot2"></div>
+        <div class="progress-line" id="line2"></div>
+        <div class="progress-dot" id="dot3"></div>
+    </div>
+    <div class="step-label" id="stepLabel">Step 1 of 3</div>
+
+    <!-- ════════ STEP 1: Audio Source ════════ -->
+    <div class="step" id="step1">
+        <h2 class="step-heading step-anim-heading">Add your audio</h2>
+        <p class="step-subheading step-anim-content">Paste a YouTube or SoundCloud link, or drop an audio file.</p>
+
+        <!-- Unified input zone -->
+        <div class="unified-input step-anim-content" id="unifiedInput">
+            <div class="unified-url-area">
+                <div class="unified-url-icon">
+                    <i data-lucide="link" style="width:18px;height:18px"></i>
+                </div>
+                <input type="url" id="ytUrl" class="unified-url-field"
+                       placeholder="Paste a YouTube or SoundCloud URL..."
+                       autocomplete="off">
+            </div>
+
+            <div class="unified-divider" id="unifiedDivider">
+                <span class="unified-divider-line"></span>
+                <span class="unified-divider-text">or</span>
+                <span class="unified-divider-line"></span>
+            </div>
+
+            <input type="file" id="audioFile" accept=".mp3,.wav,.mp4,.m4a" style="display:none;">
+            <label for="audioFile" class="unified-drop-zone" id="dropZone">
+                <div class="drop-zone-icon">
+                    <i data-lucide="upload-cloud" style="width:32px;height:32px"></i>
+                </div>
+                <p class="drop-zone-text">Drag & drop your audio file here</p>
+                <p class="drop-zone-subtext">or <span class="drop-zone-browse" id="browseBtn">browse files</span></p>
+                <p class="drop-zone-formats">MP3, WAV, MP4, M4A</p>
+            </label>
+
+            <!-- YouTube progress (shown during conversion) -->
+            <div class="yt-progress-area" id="ytProgressArea" style="display:none;">
+                <div class="yt-status" id="ytStatus"></div>
+                <div class="yt-progress-wrap" id="ytProgressWrapper">
+                    <div class="yt-progress-text" id="ytProgressText"></div>
+                    <div class="yt-progress-track">
+                        <div class="yt-progress-fill" id="ytProgressFill"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status / error messages for step 1 -->
+        <div class="status" id="step1Status"></div>
+
+        <!-- Audio info (shown after load) -->
+        <div class="audio-info" id="audioInfo">
+            <div class="info-header">
+                <i data-lucide="check-circle" style="width:18px;height:18px"></i>
+                <span class="info-title" id="audioInfoTitle"></span>
+            </div>
+            <div class="info-meta" id="audioInfoMeta"></div>
+            <div class="info-actions" id="audioInfoActions"></div>
+        </div>
+
+        <!-- Waveform visualizer (shown after audio loads) -->
+
+        <!-- Download MP3 button (shown for URL sources) -->
+        <button class="btn-download-mp3" id="downloadMp3Btn" onclick="ytDownload()" style="display:none;">
+            <i data-lucide="download" style="width:18px;height:18px"></i>
+            Download MP3
+        </button>
+        <div class="convert-progress-wrap" id="convertProgressWrap" style="display:none;">
+            <div class="convert-progress-text" id="convertProgressText">Converting to MP3... 0%</div>
+            <div class="convert-progress-track">
+                <div class="convert-progress-fill" id="convertProgressFill"></div>
+            </div>
+        </div>
+
+        <!-- Format selector -->
+        <div class="format-row" id="formatRow" style="display:none;">
+            <label for="outputFormat">Output format</label>
+            <select id="outputFormat">
+                <option value="mp3">MP3</option>
+                <option value="mp4">MP4</option>
+            </select>
+        </div>
+
+        <div class="nav-row step-anim-content">
+            <button class="btn-secondary" id="splitInsteadBtn" onclick="enableContinue(); goToStep(2);" style="display:none;">
+                <i data-lucide="scissors" style="width:16px;height:16px"></i> Split into segments instead
+            </button>
+            <div class="spacer"></div>
+            <button class="btn-primary" id="step1Next" disabled onclick="goToStep(2)">
+                Continue <i data-lucide="arrow-right" style="width:16px;height:16px"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- ════════ STEP 2: Project Name ════════ -->
+    <div class="step" id="step2">
+        <h2 class="step-heading step-anim-heading">Name your project</h2>
+        <p class="step-subheading step-anim-content">This will be the name of your downloaded ZIP file.</p>
+
+        <input type="text" id="projectName" class="step-anim-content" placeholder="e.g. Stanford Kirtan Darbar 2025" style="font-size:1.05rem; padding:0.8rem 1rem; text-align:center;">
+
+        <div class="nav-row step-anim-content">
+            <button class="btn-secondary" onclick="goToStep(1)">
+                <i data-lucide="arrow-left" style="width:16px;height:16px"></i> Back
+            </button>
+            <button class="btn-primary" id="step2Next" onclick="goToStep(3)">
+                Continue <i data-lucide="arrow-right" style="width:16px;height:16px"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- ════════ STEP 3: Kirtanis ════════ -->
+    <div class="step" id="step3">
+        <h2 class="step-heading step-anim-heading" id="step3Heading">Add kirtanis</h2>
+        <p class="step-subheading step-anim-content">Define the time segments for each kirtani. Use HH:MM:SS, MM:SS, or just seconds.</p>
+
+        <div class="col-headers-row step-anim-content">
+            <div class="col-headers">
+                <span><i data-lucide="user" style="width:13px;height:13px"></i> Name</span>
+                <span><i data-lucide="clock" style="width:13px;height:13px"></i> Start</span>
+                <span><i data-lucide="clock" style="width:13px;height:13px"></i> End</span>
+                <span></span>
+            </div>
+            <span class="kirtani-counter" id="kirtaniCounter">0 kirtanis</span>
+        </div>
+
+        <div id="performers" class="step-anim-content"></div>
+
+        <div class="add-row-group step-anim-content">
+            <button class="btn-add" id="addRowBtn" onclick="addRow()">
+                <i data-lucide="plus" style="width:16px;height:16px"></i> Add Kirtani
+            </button>
+            <button class="btn-paste-timestamps" id="pasteTimestampsBtn" onclick="openPasteModal()">
+                <i data-lucide="clipboard" style="width:14px;height:14px"></i> Paste timestamps
+            </button>
+        </div>
+
+        <!-- Paste timestamps modal -->
+        <button class="btn-split step-anim-content" id="splitBtn" onclick="submit()">
+            <i data-lucide="scissors" style="width:18px;height:18px"></i>
+            Split & Download
+        </button>
+        <button class="btn-cancel-split step-anim-content" id="cancelSplitBtn" onclick="cancelSplit()" style="display:none;">
+            <i data-lucide="x" style="width:15px;height:15px"></i>
+            Cancel
+        </button>
+        <button class="btn-split btn-new-project step-anim-content" id="newProjectBtn" onclick="startNewProject()" style="display:none;">
+            <i data-lucide="audio-lines" style="width:18px;height:18px"></i>
+            Start New Project
+        </button>
+        <div class="status" id="status"></div>
+
+        <!-- SoundCloud + Google Drive upload section — shown after download -->
+        <div class="sc-section step-anim-content" id="scSection" style="display:none;">
+            <!-- Cover art upload (optional, applies to SoundCloud) -->
+            <div class="sc-cover-row">
+                <div class="sc-cover-thumb" id="scCoverThumb"
+                     title="Add cover art"
+                     onclick="document.getElementById('scCoverFile').click()">
+                    <img id="scCoverPreview" style="display:none;">
+                    <i data-lucide="image-plus" style="width:20px;height:20px;color:#9ca3af;" id="scCoverIcon"></i>
+                </div>
+                <div class="sc-cover-info">
+                    <p>Cover art <span style="font-weight:400;color:#9ca3af;">(optional)</span></p>
+                    <span>Square JPG or PNG</span>
+                </div>
+            </div>
+            <input type="file" id="scCoverFile" accept="image/jpeg,image/png,image/jpg,image/webp" style="display:none;">
+
+            <!-- Two share cards side by side -->
+            <div class="share-cards-row">
+                <!-- SoundCloud card -->
+                <div class="share-card-col">
+                    <p class="sc-card-label">Post to SoundCloud</p>
+                    <button class="btn-sc-card" id="scConnectBtn" onclick="connectSoundCloud()">
+                        <div class="sc-icon-badge">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="30" height="30"
+                                 fill="none" stroke="white" stroke-width="1.75"
+                                 stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M17 11h1c1.38 0 3 1.274 3 3c0 1.657 -1.5 3 -3 3l-6 0v-10c3 0 4.5 1.5 5 4"/>
+                                <path d="M9 8l0 9"/>
+                                <path d="M6 17l0 -7"/>
+                                <path d="M3 16l0 -2"/>
+                            </svg>
+                        </div>
+                        <span class="sc-card-text">Post to SoundCloud</span>
+                    </button>
+                </div>
+
+                <!-- Google Drive card -->
+                <div class="share-card-col">
+                    <p class="sc-card-label">Save to Google Drive</p>
+                    <button class="btn-sc-card" id="gdConnectBtn" onclick="connectGoogleDrive()">
+                        <div class="gd-icon-badge">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="30" height="30"
+                                 fill="none" stroke="white" stroke-width="1.75"
+                                 stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 10l-6 10l-3 -5l6 -10l3 5"/>
+                                <path d="M9 15h12l-3 5h-12"/>
+                                <path d="M15 15l-6 -10h6l6 10l-6 0"/>
+                            </svg>
+                        </div>
+                        <span class="sc-card-text">Save to Google Drive</span>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="nav-row step-anim-content" style="margin-top:0.75rem;">
+            <button class="btn-secondary" onclick="goToStep(2)">
+                <i data-lucide="arrow-left" style="width:16px;height:16px"></i> Back
+            </button>
+            <div class="spacer"></div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // ── State ────────────────────────────────────────────────────────
+    const performersDiv = document.getElementById("performers");
+    let rowCount = 0;
+    let currentStep = 1;
+    let trackDuration = null;
+    let ytFileId = null;
+    let ytData = null;
+    let isAnimating = false;
+
+    // ── SoundCloud state ─────────────────────────────────────────────
+    let scSplitJobId = null;
+    let scSegments = [];
+
+    // ── Step navigation (Typeform-style) ─────────────────────────────
+    function goToStep(n) {
+        if (isAnimating || n === currentStep) return;
+
+        // Validate before advancing
+        if (n > currentStep) {
+            if (currentStep === 1 && !ytFileId && !document.getElementById("audioFile").files.length) {
+                setStep1Status("Please add audio first.", "error");
+                return;
+            }
+            if (currentStep === 2) {
+                const name = document.getElementById("projectName").value.trim();
+                if (!name) {
+                    setStatus("Please enter a project name.", "error");
+                    return;
+                }
+                setStatus("", "");
+            }
+        }
+
+        // Update Step 3 heading with project name
+        if (n === 3) {
+            const name = document.getElementById("projectName").value.trim();
+            document.getElementById("step3Heading").textContent = name || "Add kirtanis";
+        }
+
+        isAnimating = true;
+        const goingForward = n > currentStep;
+        const outgoing = document.getElementById(`step${currentStep}`);
+        const incoming = document.getElementById(`step${n}`);
+
+        // Clear any lingering animation classes
+        outgoing.classList.remove("visible", "step-enter", "step-enter-reverse", "step-exit", "step-exit-reverse");
+        incoming.classList.remove("visible", "step-enter", "step-enter-reverse", "step-exit", "step-exit-reverse");
+
+        // Animate outgoing
+        const exitClass = goingForward ? "step-exit" : "step-exit-reverse";
+        outgoing.classList.add(exitClass);
+
+        setTimeout(() => {
+            outgoing.classList.remove(exitClass);
+
+            // Animate incoming
+            const enterClass = goingForward ? "step-enter" : "step-enter-reverse";
+            incoming.classList.add(enterClass);
+
+            currentStep = n;
+            updateProgress();
+            lucide.createIcons();
+            window.scrollTo({ top: 0, behavior: "smooth" });
+
+            setTimeout(() => {
+                incoming.classList.remove(enterClass);
+                incoming.classList.add("visible");
+                isAnimating = false;
+            }, 600);
+        }, 400);
+    }
+
+    function updateProgress() {
+        for (let i = 1; i <= 3; i++) {
+            const dot = document.getElementById(`dot${i}`);
+            dot.className = "progress-dot";
+            if (i < currentStep) dot.classList.add("done");
+            else if (i === currentStep) dot.classList.add("active");
+        }
+        for (let i = 1; i <= 2; i++) {
+            const line = document.getElementById(`line${i}`);
+            line.className = "progress-line";
+            if (i < currentStep) line.classList.add("done");
+        }
+        document.getElementById("stepLabel").textContent = `Step ${currentStep} of 3`;
+    }
+
+    // ── Unified input helpers ────────────────────────────────────────
+    function isSupportedUrl(str) {
+        return /(?:youtube\.com\/(?:watch|embed|shorts)|youtu\.be\/|soundcloud\.com\/)/i.test(str);
+    }
+
+    function resetUnifiedInput() {
+        document.getElementById("dropZone").style.display = "block";
+        document.getElementById("unifiedDivider").style.display = "flex";
+        document.getElementById("ytUrl").disabled = false;
+    }
+
+    function enableContinue() {
+        document.getElementById("step1Next").disabled = false;
+        document.getElementById("formatRow").style.display = "block";
+    }
+
+    function showAudioInfo(title, duration, isUrlSource) {
+        const info = document.getElementById("audioInfo");
+        document.getElementById("audioInfoTitle").textContent = title;
+        document.getElementById("audioInfoMeta").textContent = `Duration: ${duration}`;
+        const actions = document.getElementById("audioInfoActions");
+        actions.innerHTML = "";
+
+        // "Change audio" link
+        const changeLink = document.createElement("a");
+        changeLink.href = "#";
+        changeLink.innerHTML = '<i data-lucide="refresh-cw" style="width:14px;height:14px"></i> Change audio';
+        changeLink.onclick = function(e) {
+            e.preventDefault();
+            ytFileId = null;
+            ytData = null;
+            trackDuration = null;
+            document.getElementById("audioFile").value = "";
+            document.getElementById("ytUrl").value = "";
+            info.style.display = "none";
+            document.getElementById("downloadMp3Btn").style.display = "none";
+            document.getElementById("splitInsteadBtn").style.display = "none";
+            document.getElementById("step1Next").disabled = true;
+            document.getElementById("step1Next").style.display = "";
+            document.getElementById("formatRow").style.display = "none";
+            const unifiedInput = document.getElementById("unifiedInput");
+            unifiedInput.style.display = "block";
+            resetUnifiedInput();
+            lucide.createIcons();
+        };
+        actions.appendChild(changeLink);
+
+        info.style.display = "block";
+
+        if (isUrlSource) {
+            // URL source: show big Download MP3 button + "Split instead" link
+            document.getElementById("downloadMp3Btn").style.display = "flex";
+            document.getElementById("splitInsteadBtn").style.display = "inline-flex";
+            document.getElementById("step1Next").style.display = "none";
+            document.getElementById("formatRow").style.display = "none";
+        } else {
+            // File upload: show Continue button as before
+            document.getElementById("downloadMp3Btn").style.display = "none";
+            document.getElementById("splitInsteadBtn").style.display = "none";
+            document.getElementById("step1Next").style.display = "";
+            enableContinue();
+        }
+
+        lucide.createIcons();
+    }
+
+    // ── YouTube ──────────────────────────────────────────────────────
+    function setYtStatus(msg, type) {
+        const el = document.getElementById("ytStatus");
+        el.className = "yt-status " + (type || "");
+        if (type === "processing") {
+            el.innerHTML = `<span class="spinner"></span>${msg}`;
+        } else {
+            el.textContent = msg;
+        }
+    }
+
+    async function ytConvert() {
+        const url = document.getElementById("ytUrl").value.trim();
+        if (!url) return;
+
+        const progressArea = document.getElementById("ytProgressArea");
+        const progressWrap = document.getElementById("ytProgressWrapper");
+        const progressFill = document.getElementById("ytProgressFill");
+        const progressText = document.getElementById("ytProgressText");
+        const urlField = document.getElementById("ytUrl");
+
+        // Collapse drop zone, show progress
+        urlField.disabled = true;
+        document.getElementById("dropZone").style.display = "none";
+        document.getElementById("unifiedDivider").style.display = "none";
+        progressArea.style.display = "block";
+        progressWrap.style.display = "none";
+        document.getElementById("audioInfo").style.display = "none";
+        document.getElementById("step1Next").disabled = true;
+        document.getElementById("formatRow").style.display = "none";
+        ytData = null;
+        ytFileId = null;
+        setYtStatus("Starting download...", "processing");
+
+        try {
+            const resp = await fetch("/youtube", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ url }),
+            });
+
+            if (!resp.ok) {
+                let msg = "Conversion failed.";
+                try { const err = await resp.json(); msg = err.error || msg; } catch {}
+                setYtStatus(msg, "error");
+                resetUnifiedInput();
+                return;
+            }
+
+            const { file_id } = await resp.json();
+            progressWrap.style.display = "block";
+            setYtStatus("", "");
+
+            while (true) {
+                await new Promise(r => setTimeout(r, 1000));
+                const progResp = await fetch(`/youtube/progress/${file_id}`);
+                if (!progResp.ok) {
+                    progressWrap.style.display = "none";
+                    setYtStatus("Failed to check progress.", "error");
+                    resetUnifiedInput();
+                    return;
+                }
+                const prog = await progResp.json();
+
+                if (prog.status === "error") {
+                    progressWrap.style.display = "none";
+                    setYtStatus(prog.error || "Download failed.", "error");
+                    resetUnifiedInput();
+                    return;
+                }
+
+                if (prog.status === "done") {
+                    progressFill.style.width = "100%";
+                    progressText.textContent = "Complete!";
+                    ytData = prog;
+                    ytFileId = prog.file_id;
+                    trackDuration = prog.duration_formatted;
+                    setTimeout(() => {
+                        progressArea.style.display = "none";
+                        document.getElementById("unifiedInput").style.display = "none";
+                    }, 500);
+                    setYtStatus("", "");
+                    showAudioInfo(prog.title, prog.duration_formatted, true);
+                    if (prog.chapters && prog.chapters.length > 0) {
+                        autoPopulateChapters(prog.chapters);
+                    }
+                    break;
+                }
+
+                const pct = Math.round(prog.percent || 0);
+                progressFill.style.width = pct + "%";
+                progressText.textContent = `${prog.stage || "Downloading..."} ${pct}%`;
+            }
+
+        } catch (e) {
+            progressArea.style.display = "none";
+            setYtStatus("Network error: " + e.message, "error");
+            resetUnifiedInput();
+        } finally {
+            urlField.disabled = false;
+        }
+    }
+
+    async function ytDownload() {
+        if (!ytData) return;
+        const btn = document.getElementById("downloadMp3Btn");
+        const progressWrap = document.getElementById("convertProgressWrap");
+        const progressFill = document.getElementById("convertProgressFill");
+        const progressText = document.getElementById("convertProgressText");
+
+        btn.style.display = "none";
+        progressWrap.style.display = "block";
+        progressFill.style.width = "0%";
+        progressText.textContent = "Converting to MP3... 0%";
+
+        try {
+            // Start conversion
+            const startResp = await fetch(`/youtube/convert/${ytData.file_id}`, { method: "POST" });
+            if (!startResp.ok) {
+                let msg = "Conversion failed.";
+                try { const err = await startResp.json(); msg = err.error || msg; } catch {}
+                setStatus(msg, "error");
+                progressWrap.style.display = "none";
+                btn.style.display = "flex";
+                return;
+            }
+
+            const startData = await startResp.json();
+            if (startData.status === "done") {
+                progressFill.style.width = "100%";
+                progressText.textContent = "Converting to MP3... 100%";
+            }
+
+            // Poll for progress
+            while (true) {
+                await new Promise(r => setTimeout(r, 500));
+                const progResp = await fetch(`/youtube/convert-progress/${ytData.file_id}`);
+                if (!progResp.ok) {
+                    setStatus("Failed to check conversion progress.", "error");
+                    progressWrap.style.display = "none";
+                    btn.style.display = "flex";
+                    return;
+                }
+                const prog = await progResp.json();
+
+                if (prog.status === "error") {
+                    setStatus(prog.error || "Conversion failed.", "error");
+                    progressWrap.style.display = "none";
+                    btn.style.display = "flex";
+                    return;
+                }
+
+                const pct = Math.round(prog.percent || 0);
+                progressFill.style.width = pct + "%";
+                progressText.textContent = `Converting to MP3... ${pct}%`;
+
+                if (prog.status === "done") {
+                    progressFill.style.width = "100%";
+                    progressText.textContent = "Downloading...";
+                    break;
+                }
+            }
+
+            // Download the converted file
+            const dlResp = await fetch(`/youtube/download/${ytData.file_id}`);
+            if (!dlResp.ok) {
+                let msg = "Download failed.";
+                try { const err = await dlResp.json(); msg = err.error || msg; } catch {}
+                setStatus(msg, "error");
+                progressWrap.style.display = "none";
+                btn.style.display = "flex";
+                return;
+            }
+
+            const blob = await dlResp.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = (ytData.title || "audio") + ".mp3";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+
+            progressText.textContent = "Download complete!";
+            setTimeout(() => {
+                progressWrap.style.display = "none";
+                btn.style.display = "flex";
+            }, 2000);
+
+        } catch (e) {
+            setStatus("Network error: " + e.message, "error");
+            progressWrap.style.display = "none";
+            btn.style.display = "flex";
+        }
+    }
+
+    // ── URL auto-detection ───────────────────────────────────────────
+    document.getElementById("ytUrl").addEventListener("paste", function() {
+        setTimeout(() => {
+            const val = this.value.trim();
+            if (isSupportedUrl(val)) {
+                ytConvert();
+            }
+        }, 100);
+    });
+
+    document.getElementById("ytUrl").addEventListener("keydown", function(e) {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            if (this.value.trim()) {
+                ytConvert();
+            }
+        }
+    });
+
+    // ── Browse & Drop ────────────────────────────────────────────────
+    // The drop zone is now a <label for="audioFile">, so clicking anywhere
+    // on it natively opens the file picker — no JS click() needed.
+    const dropZone = document.getElementById("dropZone");
+
+    dropZone.addEventListener("dragenter", (e) => {
+        e.preventDefault();
+        dropZone.classList.add("drag-over");
+    });
+
+    dropZone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropZone.classList.add("drag-over");
+    });
+
+    dropZone.addEventListener("dragleave", (e) => {
+        e.preventDefault();
+        if (!dropZone.contains(e.relatedTarget)) {
+            dropZone.classList.remove("drag-over");
+        }
+    });
+
+    dropZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropZone.classList.remove("drag-over");
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            const file = files[0];
+            const validExts = [".mp3", ".wav", ".mp4", ".m4a"];
+            const ext = file.name.toLowerCase().substring(file.name.lastIndexOf("."));
+            if (!validExts.includes(ext)) {
+                setStatus("Unsupported file type. Please use MP3, WAV, MP4, or M4A.", "error");
+                return;
+            }
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            document.getElementById("audioFile").files = dt.files;
+            document.getElementById("audioFile").dispatchEvent(new Event("change"));
+        }
+    });
+
+    // ── File upload ──────────────────────────────────────────────────
+    function setStep1Status(msg, type) {
+        const el = document.getElementById("step1Status");
+        el.className = "status " + (type || "");
+        if (type === "processing") {
+            el.innerHTML = `<span class="spinner"></span>${msg}`;
+        } else {
+            el.textContent = msg;
+        }
+    }
+
+    function formatDuration(seconds) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+
+    document.getElementById("audioFile").addEventListener("change", function() {
+        const file = this.files[0];
+        if (!file) return;
+
+        ytFileId = null;
+        ytData = null;
+        trackDuration = null;
+        document.getElementById("audioInfo").style.display = "none";
+        document.getElementById("step1Next").disabled = true;
+        document.getElementById("formatRow").style.display = "none";
+        setStep1Status("Reading audio...", "processing");
+
+        // Detect duration entirely in the browser — no upload needed
+        const url = URL.createObjectURL(file);
+        const audio = new Audio();
+        audio.preload = "metadata";
+        audio.onloadedmetadata = () => {
+            URL.revokeObjectURL(url);
+            trackDuration = formatDuration(audio.duration);
+            setStep1Status("", "");
+            document.getElementById("unifiedInput").style.display = "none";
+            showAudioInfo(file.name, trackDuration, false);
+        };
+        audio.onerror = async () => {
+            URL.revokeObjectURL(url);
+            // Fall back to server-side ffprobe if browser can't read metadata
+            setStep1Status("Detecting duration via server...", "processing");
+            try {
+                const formData = new FormData();
+                formData.append("audio", file);
+                const resp = await fetch("/duration", { method: "POST", body: formData });
+                if (!resp.ok) {
+                    let msg = "Could not detect duration.";
+                    try { const err = await resp.json(); msg = err.error || msg; } catch {}
+                    setStep1Status(msg, "error");
+                    return;
+                }
+                const data = await resp.json();
+                trackDuration = data.duration_formatted;
+                setStep1Status("", "");
+                document.getElementById("unifiedInput").style.display = "none";
+                showAudioInfo(file.name, trackDuration, false);
+            } catch (e) {
+                setStep1Status("Could not detect duration: " + e.message, "error");
+            }
+        };
+        audio.src = url;
+    });
+
+    // ── Enter key to advance ─────────────────────────────────────────
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+            const tag = e.target.tagName.toLowerCase();
+            if (e.target.id === "ytUrl" || tag === "button" || tag === "textarea") return;
+
+            if (currentStep === 2 && e.target.id === "projectName") {
+                e.preventDefault();
+                goToStep(3);
+                return;
+            }
+
+            if (currentStep === 3 && e.target.closest(".performer-row")) return;
+        }
+    });
+
+    // ── Kirtani counter ───────────────────────────────────────────────
+    function updateCounter() {
+        const n = performersDiv.querySelectorAll(".performer-row").length;
+        document.getElementById("kirtaniCounter").textContent =
+            n === 1 ? "1 kirtani" : `${n} kirtanis`;
+    }
+
+    // ── Kirtani rows ─────────────────────────────────────────────────
+    function createRow() {
+        rowCount++;
+        const row = document.createElement("div");
+        row.className = "performer-row";
+        row.innerHTML = `
+            <input type="text" placeholder="Kirtani name" class="field-name">
+            <div class="time-group">
+                <input type="text" placeholder="00:00:00" class="field-start time-field">
+                <button type="button" class="btn-shortcut btn-start-shortcut" title="Set to start">START</button>
+            </div>
+            <div class="time-group">
+                <input type="text" placeholder="00:00:00" class="field-end time-field">
+                <button type="button" class="btn-shortcut btn-end-shortcut" title="Set to end">END</button>
+            </div>
+            <button class="btn-remove" title="Remove">
+                <i data-lucide="trash-2" style="width:14px;height:14px"></i>
+            </button>
+        `;
+        row.querySelector(".field-name").addEventListener("input", function() {
+            const v = this.value;
+            const prog = document.getElementById("projectName").value.trim();
+            const suffix = prog ? ` - ${prog}` : "";
+            if (v.toLowerCase() === "bhai ") {
+                this.value = `Bhai  Singh Jee (XY)${suffix}`;
+                this.setSelectionRange(5, 5);
+            } else if (v.toLowerCase() === "bibi ") {
+                this.value = `Bibi  Kaur Jee (XY)${suffix}`;
+                this.setSelectionRange(5, 5);
+            }
+        });
+        row.querySelector(".btn-start-shortcut").addEventListener("click", function() {
+            row.querySelector(".field-start").value = "00:00:00";
+        });
+        row.querySelector(".btn-end-shortcut").addEventListener("click", function() {
+            if (trackDuration) {
+                row.querySelector(".field-end").value = trackDuration;
+            } else {
+                setStatus("Load audio first to detect the track duration.", "error");
+            }
+        });
+        row.querySelector(".btn-remove").addEventListener("click", function() {
+            row.remove();
+            updateCounter();
+        });
+        return row;
+    }
+
+    function timeToSeconds(str) {
+        const parts = str.trim().split(":");
+        if (parts.length === 3) return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(parts[2]);
+        return 0;
+    }
+
+    function secondsToTime(totalSec) {
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor((totalSec % 3600) / 60);
+        const s = totalSec % 60;
+        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+
+    function normalizeTime(str) {
+        const s = str.trim();
+        if (/^\d+$/.test(s)) return secondsToTime(parseInt(s));
+        if (/^\d{1,2}:\d{2}$/.test(s)) return secondsToTime(parseInt(s.split(":")[0]) * 60 + parseInt(s.split(":")[1]));
+        if (/^\d{1,2}:\d{2}:\d{2}$/.test(s)) return s.split(":").length === 3 ? secondsToTime(timeToSeconds(s)) : null;
+        return null;
+    }
+
+    function addRow() {
+        const rows = performersDiv.querySelectorAll(".performer-row");
+        let suggestedStart = "";
+        if (rows.length > 0) {
+            const lastEnd = rows[rows.length - 1].querySelector(".field-end").value.trim();
+            const norm = normalizeTime(lastEnd);
+            if (norm) {
+                suggestedStart = secondsToTime(timeToSeconds(norm) + 5);
+            }
+        }
+        const row = createRow();
+        if (suggestedStart) {
+            row.querySelector(".field-start").value = suggestedStart;
+        }
+        performersDiv.appendChild(row);
+        updateCounter();
+        lucide.createIcons();
+    }
+
+    function autoPopulateChapters(chapters) {
+        performersDiv.innerHTML = "";
+        rowCount = 0;
+        for (const ch of chapters) {
+            const row = createRow();
+            row.querySelector(".field-name").value  = ch.title;
+            row.querySelector(".field-start").value = ch.start;
+            row.querySelector(".field-end").value   = ch.end;
+            performersDiv.appendChild(row);
+        }
+        updateCounter();
+        lucide.createIcons();
+    }
+
+    // ── Paste timestamps modal ───────────────────────────────────────
+    function openPasteModal() {
+        document.getElementById("pasteModal").style.display = "flex";
+        setTimeout(() => document.getElementById("pasteModalText").focus(), 50);
+    }
+
+    function closePasteModal() {
+        document.getElementById("pasteModal").style.display = "none";
+    }
+
+    function applyPastedTimestamps() {
+        const raw = document.getElementById("pasteModalText").value.trim();
+        if (!raw) return;
+
+        // Each line: anything followed by two time tokens at the end
+        // Time token: HH:MM:SS, MM:SS, or plain seconds
+        const timeRe = /(\d{1,2}:\d{2}:\d{2}|\d{1,2}:\d{2}|\d+)/g;
+        const lines = raw.split(/\n/).map(l => l.trim()).filter(Boolean);
+
+        const parsed = [];
+        for (const line of lines) {
+            const times = [...line.matchAll(timeRe)].map(m => m[0]);
+            if (times.length < 2) continue; // need at least start + end
+            const start = times[times.length - 2];
+            const end   = times[times.length - 1];
+            // Name is everything before the first time token
+            const firstTimeIdx = line.search(/\d{1,2}:\d{2}|\d+\s*$/);
+            let name = line.slice(0, line.indexOf(times[0])).trim().replace(/[-–—,]+$/, "").trim();
+            if (!name) name = `Kirtani ${parsed.length + 1}`;
+            parsed.push({ name, start: normalizeTime(start), end: normalizeTime(end) });
+        }
+
+        if (parsed.length === 0) {
+            alert("Couldn't find any timestamps. Make sure each line has a name and two times.");
+            return;
+        }
+
+        performersDiv.innerHTML = "";
+        rowCount = 0;
+        for (const { name, start, end } of parsed) {
+            const row = createRow();
+            row.querySelector(".field-name").value  = name;
+            row.querySelector(".field-start").value = start;
+            row.querySelector(".field-end").value   = end;
+            performersDiv.appendChild(row);
+        }
+        updateCounter();
+        lucide.createIcons();
+        closePasteModal();
+    }
+
+    // Close modal on Escape
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closePasteModal();
+    });
+
+    // Start with one row
+    addRow();
+
+    // ── Shared utilities ─────────────────────────────────────────────
+    function setStatus(msg, type) {
+        const el = document.getElementById("status");
+        el.className = "status " + type;
+        if (type === "processing") {
+            el.innerHTML = `<span class="spinner"></span>${msg}`;
+        } else {
+            el.textContent = msg;
+        }
+    }
+
+    // ── Submit ───────────────────────────────────────────────────────
+    let _splitCancelled = false;
+
+    function cancelSplit() {
+        _splitCancelled = true;
+    }
+
+    async function submit() {
+        const fileInput = document.getElementById("audioFile");
+        const format = document.getElementById("outputFormat").value;
+        const btn = document.getElementById("splitBtn");
+
+        const projectName = document.getElementById("projectName").value.trim();
+        if (!projectName) {
+            setStatus("Please enter a project name.", "error");
+            return;
+        }
+
+        if (!ytFileId && !fileInput.files.length) {
+            setStatus("Please add audio first.", "error");
+            return;
+        }
+
+        const rows = performersDiv.querySelectorAll(".performer-row");
+        if (!rows.length) {
+            setStatus("Add at least one kirtani.", "error");
+            return;
+        }
+
+        const segments = [];
+        for (const row of rows) {
+            const name = row.querySelector(".field-name").value.trim();
+            const start = row.querySelector(".field-start").value.trim();
+            const end = row.querySelector(".field-end").value.trim();
+
+            if (!name) {
+                setStatus("Every kirtani must have a name.", "error");
+                return;
+            }
+            const normStart = normalizeTime(start);
+            const normEnd = normalizeTime(end);
+            if (!normStart || !normEnd) {
+                setStatus(`Invalid time format for "${name}". Use HH:MM:SS, MM:SS, or seconds.`, "error");
+                return;
+            }
+            row.querySelector(".field-start").value = normStart;
+            row.querySelector(".field-end").value = normEnd;
+            segments.push({ name, start: normStart, end: normEnd });
+        }
+
+        const formData = new FormData();
+        if (ytFileId) {
+            formData.append("file_id", ytFileId);
+        } else {
+            formData.append("audio", fileInput.files[0]);
+        }
+        formData.append("segments", JSON.stringify(segments));
+        formData.append("format", format);
+        formData.append("project_name", projectName);
+
+        _splitCancelled = false;
+        btn.disabled = true;
+        btn.style.display = "none";
+        document.getElementById("cancelSplitBtn").style.display = "flex";
+        document.getElementById("addRowBtn").disabled = true;
+        setStatus("", "");
+
+        // Mark all rows pending; lock delete buttons
+        const allRows = Array.from(performersDiv.querySelectorAll(".performer-row"));
+        allRows.forEach(row => {
+            row.classList.add("row-pending");
+            row.querySelector(".btn-remove").disabled = true;
+        });
+
+        try {
+            const resp = await fetch("/split", { method: "POST", body: formData });
+            if (!resp.ok) {
+                let msg = "Something went wrong.";
+                try { const err = await resp.json(); msg = err.error || msg; } catch {
+                    msg = `Server returned status ${resp.status}`;
+                }
+                resetRowStates(allRows);
+                setStatus(msg, "error");
+                return;
+            }
+
+            const { job_id } = await resp.json();
+
+            // Poll for per-track progress
+            let lastCompleted = 0;
+            while (true) {
+                await new Promise(r => setTimeout(r, 600));
+
+                if (_splitCancelled) {
+                    resetRowStates(allRows);
+                    setStatus("Split cancelled.", "");
+                    return;
+                }
+
+                const progResp = await fetch(`/split/progress/${job_id}`);
+                if (!progResp.ok) {
+                    resetRowStates(allRows);
+                    setStatus("Lost connection to server.", "error");
+                    return;
+                }
+                const prog = await progResp.json();
+
+                if (prog.status === "error") {
+                    resetRowStates(allRows);
+                    setStatus(prog.error || "Split failed.", "error");
+                    return;
+                }
+
+                const completed = prog.completed || 0;
+
+                // Animate newly completed rows
+                for (let i = lastCompleted; i < completed; i++) {
+                    if (allRows[i]) {
+                        allRows[i].classList.remove("row-pending", "row-processing");
+                        allRows[i].classList.add("row-done");
+                        const removeBtn = allRows[i].querySelector(".btn-remove");
+                        removeBtn.innerHTML = `<i data-lucide="check" style="width:14px;height:14px"></i>`;
+                        lucide.createIcons();
+                    }
+                }
+
+                // Mark the currently processing row
+                if (completed < allRows.length && allRows[completed]) {
+                    allRows[completed].classList.remove("row-pending");
+                    allRows[completed].classList.add("row-processing");
+                    const removeBtn = allRows[completed].querySelector(".btn-remove");
+                    removeBtn.innerHTML = `<span class="spinner" style="width:14px;height:14px;border-width:2px;margin:0"></span>`;
+                }
+
+                lastCompleted = completed;
+
+                if (prog.status === "done") break;
+            }
+
+            // Download the zip
+            setStatus("Preparing download...", "processing");
+            const dlResp = await fetch(`/split/download/${job_id}`);
+            if (!dlResp.ok) {
+                let msg = "Download failed.";
+                try { const err = await dlResp.json(); msg = err.error || msg; } catch {}
+                setStatus(msg, "error");
+                resetRowStates(allRows);
+                return;
+            }
+
+            const blob = await dlResp.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = projectName + ".zip";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+
+            setStatus("Download started!", "success");
+            btn.style.display = "none";
+            document.getElementById("newProjectBtn").style.display = "flex";
+
+            // Reveal SoundCloud section
+            scSplitJobId = job_id;
+            scSegments = segments;
+            showScState("connect");
+            document.getElementById("scSection").style.display = "block";
+            lucide.createIcons();  // renders cloud-upload icon in the SC button
+
+        } catch (e) {
+            resetRowStates(allRows);
+            setStatus("Network error: " + e.message, "error");
+        } finally {
+            btn.disabled = false;
+            btn.style.display = "flex";
+            document.getElementById("cancelSplitBtn").style.display = "none";
+            document.getElementById("addRowBtn").disabled = false;
+        }
+    }
+
+    function resetRowStates(rows) {
+        rows.forEach(row => {
+            row.classList.remove("row-pending", "row-processing", "row-done");
+            const removeBtn = row.querySelector(".btn-remove");
+            removeBtn.disabled = false;
+            removeBtn.innerHTML = `<i data-lucide="trash-2" style="width:14px;height:14px"></i>`;
+        });
+        lucide.createIcons();
+    }
+
+    function startNewProject() {
+        // Reset all state
+        ytFileId = null;
+        ytData = null;
+        trackDuration = null;
+        document.getElementById("audioFile").value = "";
+        document.getElementById("ytUrl").value = "";
+        document.getElementById("projectName").value = "";
+        document.getElementById("audioInfo").style.display = "none";
+        document.getElementById("downloadMp3Btn").style.display = "none";
+        document.getElementById("splitInsteadBtn").style.display = "none";
+        document.getElementById("step1Next").disabled = true;
+        document.getElementById("step1Next").style.display = "";
+        document.getElementById("formatRow").style.display = "none";
+        document.getElementById("unifiedInput").style.display = "block";
+        resetUnifiedInput();
+        setStatus("", "");
+
+        // Reset buttons
+        document.getElementById("splitBtn").style.display = "flex";
+        document.getElementById("newProjectBtn").style.display = "none";
+
+        // Reset SoundCloud section
+        scSplitJobId = null;
+        scSegments = [];
+        scPolling = false;
+        scCoverFile = null;
+        document.getElementById("scCoverFile").value = "";
+        document.getElementById("scCoverPreview").style.display = "none";
+        document.getElementById("scCoverIcon").style.display = "";
+        document.getElementById("scCoverThumb").classList.remove("has-image");
+        document.getElementById("scSection").style.display = "none";
+        document.getElementById("scErrorMsg").style.display = "none";
+        showScState("connect");
+        gdPolling = false;
+        showGdState("connect");
+        document.getElementById("gdErrorMsg").style.display = "none";
+
+        // Clear kirtani rows and add a fresh one
+        performersDiv.innerHTML = "";
+        rowCount = 0;
+        addRow();
+
+        // Navigate to Step 1
+        const outgoing = document.getElementById(`step${currentStep}`);
+        outgoing.classList.remove("visible", "step-enter", "step-enter-reverse");
+        currentStep = 1;
+        updateProgress();
+        const step1 = document.getElementById("step1");
+        step1.classList.add("step-enter");
+        lucide.createIcons();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        setTimeout(() => {
+            step1.classList.remove("step-enter");
+            step1.classList.add("visible");
+        }, 600);
+    }
+
+    // ── SoundCloud ───────────────────────────────────────────────────
+
+    let scPolling = false;
+    let scCoverFile = null;
+
+    // ── Google Drive ─────────────────────────────────────────────────
+
+    let gdPolling = false;
+
+    // Cover art file picker
+    document.getElementById("scCoverFile").addEventListener("change", function() {
+        const file = this.files[0];
+        if (!file) return;
+        scCoverFile = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const preview = document.getElementById("scCoverPreview");
+            const icon = document.getElementById("scCoverIcon");
+            const thumb = document.getElementById("scCoverThumb");
+            preview.src = e.target.result;
+            preview.style.display = "block";
+            icon.style.display = "none";
+            thumb.classList.add("has-image");
+        };
+        reader.readAsDataURL(file);
+    });
+
+    // ── Upload toast helpers ─────────────────────────────────────────
+    function showUploadToast({ icon, color, label, pct, link, linkText }) {
+        const toast = document.getElementById("uploadToast");
+        document.getElementById("uploadToastIcon").innerHTML = icon;
+        document.getElementById("uploadToastIcon").style.background = color;
+        document.getElementById("uploadToastLabel").textContent = label;
+        document.getElementById("uploadToastFill").style.background = "#4f46e5";
+        document.getElementById("uploadToastFill").style.width = (pct || 0) + "%";
+        const toastLink = document.getElementById("uploadToastLink");
+        if (link) {
+            toastLink.href = link;
+            toastLink.style.display = "inline-flex";
+            toastLink.innerHTML = `${linkText || "Open"} <i data-lucide="external-link" style="width:12px;height:12px"></i>`;
+            lucide.createIcons();
+        } else {
+            toastLink.style.display = "none";
+        }
+        // Re-trigger slide-up animation
+        toast.style.display = "none";
+        void toast.offsetWidth;
+        toast.style.display = "flex";
+        lucide.createIcons();
+    }
+
+    function updateToastProgress(label, pct) {
+        document.getElementById("uploadToastLabel").textContent = label;
+        document.getElementById("uploadToastFill").style.width = pct + "%";
+    }
+
+    function hideUploadToast() {
+        document.getElementById("uploadToast").style.display = "none";
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const closeBtn = document.getElementById("uploadToastClose");
+        if (closeBtn) closeBtn.onclick = hideUploadToast;
+    });
+
+    function showScState(state) {
+        document.getElementById("scConnectBtn").disabled = state === "uploading";
+        if (state !== "connect") document.getElementById("scErrorMsg").style.display = "none";
+    }
+
+    function showGdState(state) {
+        document.getElementById("gdConnectBtn").disabled = state === "uploading";
+        if (state !== "connect") document.getElementById("gdErrorMsg").style.display = "none";
+    }
+
+    const SC_ICON = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="white" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 11h1c1.38 0 3 1.274 3 3c0 1.657 -1.5 3 -3 3l-6 0v-10c3 0 4.5 1.5 5 4"/><path d="M9 8l0 9"/><path d="M6 17l0 -7"/><path d="M3 16l0 -2"/></svg>`;
+    const GD_ICON = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="white" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10l-6 10l-3 -5l6 -10l3 5"/><path d="M9 15h12l-3 5h-12"/><path d="M15 15l-6 -10h6l6 10l-6 0"/></svg>`;
+
+    async function connectSoundCloud() {
+        const projectName = document.getElementById("projectName").value.trim();
+
+        if (scCoverFile) {
+            try {
+                const fd = new FormData();
+                fd.append("cover", scCoverFile);
+                await fetch(`/soundcloud/set-cover/${scSplitJobId}`, { method: "POST", body: fd });
+            } catch (_) {}
+        }
+
+        try {
+            const resp = await fetch(`/soundcloud/trigger-upload?job_id=${encodeURIComponent(scSplitJobId)}&project_name=${encodeURIComponent(projectName)}`);
+            const data = await resp.json();
+            if (data.status === "started") {
+                showScState("uploading");
+                showUploadToast({ icon: SC_ICON, color: "#ff5500", label: "Uploading to SoundCloud…", pct: 0 });
+                pollScUpload();
+                return;
+            }
+        } catch (_) {}
+
+        const w = 520, h = 700;
+        const left = Math.round(screen.width / 2 - w / 2);
+        const top  = Math.round(screen.height / 2 - h / 2);
+        const popup = window.open(
+            `/soundcloud/login?job_id=${encodeURIComponent(scSplitJobId)}&project_name=${encodeURIComponent(projectName)}`,
+            "sc_auth",
+            `width=${w},height=${h},left=${left},top=${top},scrollbars=yes,resizable=yes`
+        );
+
+        if (!popup) {
+            document.getElementById("scErrorMsg").textContent = "Pop-up was blocked. Please allow pop-ups for localhost and try again.";
+            document.getElementById("scErrorMsg").style.display = "block";
+            return;
+        }
+
+        showScState("uploading");
+        showUploadToast({ icon: SC_ICON, color: "#ff5500", label: "Connecting to SoundCloud…", pct: 0 });
+        pollScUpload();
+    }
+
+    async function pollScUpload() {
+        if (scPolling) return;
+        scPolling = true;
+        try {
+            for (;;) {
+                await new Promise(r => setTimeout(r, 2000));
+                let prog;
+                try {
+                    const resp = await fetch("/soundcloud/latest-upload");
+                    if (!resp.ok) continue;
+                    prog = await resp.json();
+                } catch (_) { continue; }
+
+                if (prog.status === "none") {
+                    updateToastProgress("Connecting to SoundCloud…", 0);
+                    continue;
+                }
+                if (prog.status === "uploading") {
+                    showScState("uploading");
+                    const c = prog.completed || 0, t = prog.total || 1;
+                    const label = c < t ? `SoundCloud: uploading track ${c + 1} of ${t}…` : "SoundCloud: creating album…";
+                    updateToastProgress(label, Math.round(c / t * 100));
+                } else if (prog.status === "done") {
+                    showScState("connect");
+                    showUploadToast({
+                        icon: SC_ICON, color: "#ff5500",
+                        label: "All tracks uploaded to SoundCloud!",
+                        pct: 100,
+                        link: prog.playlist_url || "https://soundcloud.com/you/tracks",
+                        linkText: "View playlist",
+                    });
+                    return;
+                } else if (prog.status === "error") {
+                    showScState("connect");
+                    hideUploadToast();
+                    document.getElementById("scErrorMsg").textContent = prog.error || "Upload failed.";
+                    document.getElementById("scErrorMsg").style.display = "block";
+                    return;
+                }
+            }
+        } finally {
+            scPolling = false;
+        }
+    }
+
+    // ── Google Drive ─────────────────────────────────────────────────
+
+    async function connectGoogleDrive() {
+        const projectName = document.getElementById("projectName").value.trim();
+
+        try {
+            const resp = await fetch(`/gdrive/trigger-upload?job_id=${encodeURIComponent(scSplitJobId)}&project_name=${encodeURIComponent(projectName)}`);
+            const data = await resp.json();
+            if (data.status === "started") {
+                showGdState("uploading");
+                showUploadToast({ icon: GD_ICON, color: "#1a73e8", label: "Uploading to Google Drive…", pct: 5 });
+                pollGdUpload();
+                return;
+            }
+        } catch (_) {}
+
+        const w = 520, h = 700;
+        const left = Math.round(screen.width / 2 - w / 2);
+        const top  = Math.round(screen.height / 2 - h / 2);
+        const popup = window.open(
+            `/gdrive/login?job_id=${encodeURIComponent(scSplitJobId)}&project_name=${encodeURIComponent(projectName)}`,
+            "gd_auth",
+            `width=${w},height=${h},left=${left},top=${top},scrollbars=yes,resizable=yes`
+        );
+
+        if (!popup) {
+            document.getElementById("gdErrorMsg").textContent = "Pop-up was blocked. Please allow pop-ups for localhost and try again.";
+            document.getElementById("gdErrorMsg").style.display = "block";
+            return;
+        }
+
+        showGdState("uploading");
+        showUploadToast({ icon: GD_ICON, color: "#1a73e8", label: "Connecting to Google Drive…", pct: 5 });
+        pollGdUpload();
+    }
+
+    async function pollGdUpload() {
+        if (gdPolling) return;
+        gdPolling = true;
+        try {
+            for (;;) {
+                await new Promise(r => setTimeout(r, 2000));
+                let prog;
+                try {
+                    const resp = await fetch("/gdrive/latest-upload");
+                    if (!resp.ok) continue;
+                    prog = await resp.json();
+                } catch (_) { continue; }
+
+                if (prog.status === "none") {
+                    updateToastProgress("Connecting to Google Drive…", 5);
+                    continue;
+                }
+                if (prog.status === "uploading") {
+                    showGdState("uploading");
+                    const c = prog.completed || 0, t = prog.total || 1;
+                    const label = t > 0
+                        ? `Google Drive: uploading track ${c} of ${t}…`
+                        : "Google Drive: uploading…";
+                    updateToastProgress(label, prog.pct || 10);
+                } else if (prog.status === "done") {
+                    showGdState("connect");
+                    showUploadToast({
+                        icon: GD_ICON, color: "#1a73e8",
+                        label: "Saved to Google Drive!",
+                        pct: 100,
+                        link: prog.folder_url || "https://drive.google.com/drive/my-drive",
+                        linkText: "Open folder",
+                    });
+                    return;
+                } else if (prog.status === "error") {
+                    showGdState("connect");
+                    hideUploadToast();
+                    document.getElementById("gdErrorMsg").textContent = prog.error || "Upload failed.";
+                    document.getElementById("gdErrorMsg").style.display = "block";
+                    return;
+                }
+            }
+        } finally {
+            gdPolling = false;
+        }
+    }
+
+    // ── Dark mode ─────────────────────────────────────────────────────
+    function toggleDarkMode() {
+        const isDark = document.body.classList.toggle("dark");
+        document.getElementById("themeIconMoon").style.display = isDark ? "none" : "block";
+        document.getElementById("themeIconSun").style.display = isDark ? "block" : "none";
+        localStorage.setItem("darkMode", isDark ? "1" : "0");
+        lucide.createIcons();
+    }
+
+    // ── Init: animate Step 1 in on page load ─────────────────────────
+    document.addEventListener("DOMContentLoaded", () => {
+        // Restore dark mode preference
+        if (localStorage.getItem("darkMode") === "1") {
+            document.body.classList.add("dark");
+            document.getElementById("themeIconMoon").style.display = "none";
+            document.getElementById("themeIconSun").style.display = "block";
+        }
+
+        const step1 = document.getElementById("step1");
+        step1.classList.add("step-enter");
+        setTimeout(() => {
+            step1.classList.remove("step-enter");
+            step1.classList.add("visible");
+        }, 600);
+        lucide.createIcons();
+    });
+</script>
+
+<!-- Upload progress toast — fixed bottom, outside container -->
+<div id="uploadToast" style="display:none;">
+    <div class="upload-toast-icon" id="uploadToastIcon"></div>
+    <div class="upload-toast-body">
+        <div class="upload-toast-label" id="uploadToastLabel">Uploading…</div>
+        <div class="upload-toast-track">
+            <div class="upload-toast-fill" id="uploadToastFill"></div>
+        </div>
+    </div>
+    <a id="uploadToastLink" href="#" target="_blank" class="upload-toast-link" style="display:none;">
+        Open <i data-lucide="external-link" style="width:12px;height:12px"></i>
+    </a>
+    <button type="button" class="upload-toast-close" id="uploadToastClose">
+        <i data-lucide="x" style="width:14px;height:14px"></i>
+    </button>
+</div>
+<div class="sc-error" id="scErrorMsg" style="display:none;position:fixed;bottom:5rem;left:50%;transform:translateX(-50%);background:#fff;padding:0.75rem 1.25rem;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.12);font-size:0.82rem;color:#ef4444;z-index:900;max-width:380px;text-align:center;"></div>
+<div class="sc-error" id="gdErrorMsg" style="display:none;position:fixed;bottom:5rem;left:50%;transform:translateX(-50%);background:#fff;padding:0.75rem 1.25rem;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.12);font-size:0.82rem;color:#ef4444;z-index:900;max-width:380px;text-align:center;"></div>
+
+<!-- Paste timestamps modal — outside container so fixed positioning works correctly -->
+<div id="pasteModal" style="display:none;">
+    <div class="paste-modal-backdrop" onclick="closePasteModal()"></div>
+    <div class="paste-modal-box">
+        <p class="paste-modal-title">Paste your timestamps</p>
+        <p class="paste-modal-hint">One kirtani per line: <code>Name  HH:MM:SS  HH:MM:SS</code></p>
+        <textarea id="pasteModalText" class="paste-modal-textarea" rows="10" placeholder="Jup Singh  00:02:13  00:25:47&#10;Ekam  00:28:00  00:58:20&#10;Darsev  00:59:08  01:24:05"></textarea>
+        <div class="paste-modal-actions">
+            <button type="button" class="btn-secondary" onclick="closePasteModal()">Cancel</button>
+            <button type="button" class="btn-primary" onclick="applyPastedTimestamps()">Apply</button>
+        </div>
+    </div>
+</div>
+</body>
+</html>
