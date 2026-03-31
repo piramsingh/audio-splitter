@@ -1,4 +1,4 @@
-# SSA Sounds – Audio Splitter
+# Kirtan Audio Splitter
 
 A local web app for splitting long kirtan recordings into individual tracks by kirtani. Upload an audio file, enter timestamps, and download a ZIP of named splits.
 
