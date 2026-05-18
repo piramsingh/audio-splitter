@@ -2282,6 +2282,40 @@
     }
 
     // ── Paste timestamps modal ───────────────────────────────────────
+
+    // Auto-format a name pasted from notes into our convention:
+    //   "Divjot Kaur (UCB)"         → "Bibi Divjot Kaur Jee (UCB) - {project}"
+    //   "Manjeet Singh (SJSU)"      → "Bhai Manjeet Singh Jee (SJSU) - {project}"
+    //   "Gursimranjit Singh Jee (CA)" → "Bhai Gursimranjit Singh Jee (CA) - {project}"
+    //   "Bhai Hardeep Singh Jee"    → "Bhai Hardeep Singh Jee - {project}"     (unchanged)
+    //   "DJ Snake"                  → "DJ Snake - {project}"                   (no Singh/Kaur → leave as-is)
+    function formatKirtaniName(raw, projectName) {
+        let name = (raw || "").trim();
+        if (!name) return name;
+
+        const suffix = projectName ? ` - ${projectName}` : "";
+
+        const alreadyHasBhai = /^bhai\s/i.test(name);
+        const alreadyHasBibi = /^bibi\s/i.test(name);
+        const hasSingh = /\bsingh\b/i.test(name);
+        const hasKaur  = /\bkaur\b/i.test(name);
+        const hasJee   = /\bjee\b/i.test(name);
+
+        // 1. Prefix Bhai / Bibi if not already present
+        if (!alreadyHasBhai && !alreadyHasBibi) {
+            if (hasKaur)       name = "Bibi " + name;
+            else if (hasSingh) name = "Bhai " + name;
+        }
+
+        // 2. Insert Jee after Singh / Kaur if missing
+        if (!hasJee) {
+            if (hasKaur)       name = name.replace(/\bKaur\b/i, "Kaur Jee");
+            else if (hasSingh) name = name.replace(/\bSingh\b/i, "Singh Jee");
+        }
+
+        return name + suffix;
+    }
+
     function openPasteModal() {
         document.getElementById("pasteModal").style.display = "flex";
         setTimeout(() => document.getElementById("pasteModalText").focus(), 50);
@@ -2295,10 +2329,20 @@
         const raw = document.getElementById("pasteModalText").value.trim();
         if (!raw) return;
 
-        // Each line: anything followed by two time tokens at the end
-        // Time token: HH:MM:SS, MM:SS, or plain seconds
+        const projectName = document.getElementById("projectName").value.trim();
+
+        // Notes apps often paste everything as one wall of text — split on lines
+        // OR on the common "Name (X) - HH:MM:SS - HH:MM:SS" pattern when there are no newlines.
         const timeRe = /(\d{1,2}:\d{2}:\d{2}|\d{1,2}:\d{2}|\d+)/g;
-        const lines = raw.split(/\n/).map(l => l.trim()).filter(Boolean);
+        let lines = raw.split(/\n/).map(l => l.trim()).filter(Boolean);
+        if (lines.length === 1) {
+            // Heuristic: split before each "Word ... HH:MM:SS - HH:MM:SS" block
+            // by inserting newlines between consecutive entries
+            const single = lines[0];
+            const splitPattern = /(?=\b[A-Z][\w'-]*\s+(?:Singh|Kaur)\b)/g;
+            const candidates = single.split(splitPattern).map(s => s.trim()).filter(Boolean);
+            if (candidates.length > 1) lines = candidates;
+        }
 
         const parsed = [];
         for (const line of lines) {
@@ -2307,9 +2351,9 @@
             const start = times[times.length - 2];
             const end   = times[times.length - 1];
             // Name is everything before the first time token
-            const firstTimeIdx = line.search(/\d{1,2}:\d{2}|\d+\s*$/);
             let name = line.slice(0, line.indexOf(times[0])).trim().replace(/[-–—,]+$/, "").trim();
             if (!name) name = `Kirtani ${parsed.length + 1}`;
+            name = formatKirtaniName(name, projectName);
             parsed.push({ name, start: normalizeTime(start), end: normalizeTime(end) });
         }
 
